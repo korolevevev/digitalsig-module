@@ -1,0 +1,24 @@
+{
+  "name": "@astral/cryptopro-cades",
+  "browser": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "tsc --watch",
+    "prebuild": "npx rimraf ./lib",
+    "build": "commander build",
+    "publish": "npm publish ./lib",
+    "test": "jest",
+    "lint:types": "tsc --noEmit",
+    "lint": "eslint --fix --quiet",
+    "lint:all": "eslint \"**/*{.ts,.tsx}\" --fix --quiet"
+  },
+  "dependencies": {
+    "buffer": "6.0.3",
+    "pkijs": "3.0.10",
+    "asn1js": "3.0.5"
+  },
+  "devDependencies": {
+    "copyfiles": "2.4.1"
+  },
+  "version": "1.6.0"
+}
