@@ -14,6 +14,7 @@ import {
   getSystemInfo,
   ICertificate,
   ICryptoProvider,
+  ILicensesState,
   ISystemInfo,
   outputError,
   pluginConfig,
@@ -25,10 +26,11 @@ import {
 import { getLicensesState } from '@astral/cryptopro-cades/src/api/getLicensesState';
 import { Buffer } from 'buffer';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { CertificateInfo } from './components/CertificateInfo';
-import { CryptoProviderInfo } from './components/CryptoProviderInfo';
+import { CertificateInfo } from './components/CertificateInfo/CertificateInfo';
+import { CryptoProviderInfo } from './components/CryptoProviderInfo/CryptoProviderInfo';
+import { LicenseInfo } from './components/LicenseInfo/LicenseInfo';
 
 const CryptoApp = () => {
   pluginConfig.CheckSystemSetup = true;
@@ -38,6 +40,8 @@ const CryptoApp = () => {
   const [versionInfo, setVersionInfo] = useState<ISystemInfo>();
   const [cryptoProviders, setCryptoProviders] = useState<ICryptoProvider[]>([]);
   const [showCertificates, setShowCertificates] = useState<boolean>();
+  const [licenses, setLicenses] = useState<ILicensesState | {}>({});
+  const [showLicenses, setShowLicenses] = useState<boolean>();
   const [showCryptoProviders, setShowCryptoProviders] = useState<boolean>();
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate>();
   const [selectedFile, setSelectedFile] = useState<File>();
@@ -65,7 +69,7 @@ const CryptoApp = () => {
         // автоматически берем первый валидный серт если еще выбран
         if (!selectedCertificate) {
           setSelectedCertificate(
-            fetchedCertificates.find((c) => c.isGost && c.hasPrivateKey)
+            fetchedCertificates.find((c) => c.isGost && c.hasPrivateKey),
           );
         }
       } catch (error) {
@@ -83,6 +87,22 @@ const CryptoApp = () => {
       }
     }
 
+    /**
+     * Проверить лицензии продуктов Крипто Про
+     */
+    async function fetchLicenses() {
+      try {
+        const result = await getLicensesState();
+        setLicenses(result);
+      } catch (error) {
+        outputError(error);
+        window.alert(error.toString());
+      }
+    }
+
+    if (showLicenses) {
+      fetchLicenses();
+    }
     if (showCryptoProviders) {
       fetchCryptoProviders();
     }
@@ -90,7 +110,12 @@ const CryptoApp = () => {
       fetchCertificates();
     }
     fetchSystemInfo();
-  }, [showCryptoProviders, showCertificates, selectedCertificate]);
+  }, [
+    showCryptoProviders,
+    showCertificates,
+    selectedCertificate,
+    showLicenses,
+  ]);
 
   /**
    * Попытаться найти сертификат с указанным skid.
@@ -130,7 +155,7 @@ const CryptoApp = () => {
    */
   const convertBase64toBlob = (
     base64: string,
-    type: string = 'application/octet-stream'
+    type: string = 'application/octet-stream',
   ): Promise<Blob> =>
     window
       .fetch(`data:${type};base64,${base64}`)
@@ -152,7 +177,7 @@ const CryptoApp = () => {
     try {
       const sig = await sign(
         selectedCertificate,
-        await selectedFile.arrayBuffer() // массив байт либо массив байт в формате Base64 строки
+        await selectedFile.arrayBuffer(), // массив байт либо массив байт в формате Base64 строки
       );
 
       dowloadFile(await convertBase64toBlob(sig), selectedFile.name + '.sig');
@@ -180,7 +205,7 @@ const CryptoApp = () => {
         selectedCertificate,
         await selectedFile.arrayBuffer(), // массив байт хэша либо хэш в формате hex строки
         true,
-        true
+        true,
       );
 
       dowloadFile(await convertBase64toBlob(sig), selectedFile.name + '.sig');
@@ -194,7 +219,7 @@ const CryptoApp = () => {
    * Подписать файл в формате XmlDSig.
    */
   const signXmlFile = async (
-    xmlSignatureType: CADESCOM_XML_SIGNATURE_TYPE
+    xmlSignatureType: CADESCOM_XML_SIGNATURE_TYPE,
   ): Promise<void> => {
     if (!selectedCertificate) {
       window.alert('Сертификат не выбран');
@@ -209,12 +234,12 @@ const CryptoApp = () => {
       const sig = await signXml(
         selectedCertificate,
         await selectedFile.arrayBuffer(), // массив байт либо массив байт в формате Base64 строки
-        xmlSignatureType
+        xmlSignatureType,
       );
 
       dowloadFile(
         await convertBase64toBlob(sig),
-        selectedFile.name.replace('.xml', '') + '.sig.xml'
+        selectedFile.name.replace('.xml', '') + '.sig.xml',
       );
     } catch (error) {
       outputError(error);
@@ -250,12 +275,12 @@ const CryptoApp = () => {
         await selectedFile.arrayBuffer(), // массив байт либо массив байт в формате Base64 строки
         CADESCOM_XADES_TYPE.CADESCOM_XADES_T,
         false,
-        tspServer
+        tspServer,
       );
 
       dowloadFile(
         await convertBase64toBlob(sig),
-        selectedFile.name.replace('.xml', '') + '.sig.xml'
+        selectedFile.name.replace('.xml', '') + '.sig.xml',
       );
     } catch (error) {
       outputError(error);
@@ -279,12 +304,12 @@ const CryptoApp = () => {
     try {
       const encryptedData = await encrypt(
         await selectedFile.arrayBuffer(), // массив байт либо массив байт в формате Base64 строки
-        [selectedEncryptCert]
+        [selectedEncryptCert],
       );
 
       dowloadFile(
         await convertBase64toBlob(encryptedData),
-        selectedFile.name + '.enc'
+        selectedFile.name + '.enc',
       );
     } catch (error) {
       outputError(error);
@@ -303,12 +328,12 @@ const CryptoApp = () => {
 
     try {
       const decryptedData = await decrypt(
-        await selectedFile.arrayBuffer() // массив байт либо массив байт в формате Base64 строки
+        await selectedFile.arrayBuffer(), // массив байт либо массив байт в формате Base64 строки
       );
 
       dowloadFile(
         await convertBase64toBlob(decryptedData),
-        selectedFile.name + '.decrypted'
+        selectedFile.name + '.decrypted',
       );
     } catch (error) {
       outputError(error);
@@ -329,7 +354,7 @@ const CryptoApp = () => {
     try {
       const encryptedData = await encrypt(
         Buffer.from(originalData).toString('base64'),
-        [selectedCertificate.certificateBin!]
+        [selectedCertificate.certificateBin!],
       );
 
       const decryptedData = await decrypt(encryptedData);
@@ -337,7 +362,7 @@ const CryptoApp = () => {
         Buffer.from(decryptedData, 'base64').toString('utf-8') === originalData;
 
       window.alert(
-        isOk ? 'Шифрование-расшифровка прошла успешно' : 'Данные не совпали'
+        isOk ? 'Шифрование-расшифровка прошла успешно' : 'Данные не совпали',
       );
     } catch (error) {
       outputError(error);
@@ -350,7 +375,7 @@ const CryptoApp = () => {
    * @param data
    */
   const importCertificate = async (
-    data: string | ArrayBuffer
+    data: string | ArrayBuffer,
   ): Promise<void> => {
     if (!data) {
       setSelectedEncryptCertBase64(undefined);
@@ -364,7 +389,7 @@ const CryptoApp = () => {
 
     const parseFromArrayBuffer = async (buffer: ArrayBuffer) => {
       const certificate: ICertificate = await createObject(
-        CRYPTO_OBJECTS.certificate
+        CRYPTO_OBJECTS.certificate,
       );
       const base64 = Buffer.from(buffer).toString('base64');
       await certificate.Import(base64);
@@ -375,7 +400,7 @@ const CryptoApp = () => {
 
     const parseFromBase64String = async (base64: string) => {
       const certificate: ICertificate = await createObject(
-        CRYPTO_OBJECTS.certificate
+        CRYPTO_OBJECTS.certificate,
       );
       await certificate.Import(base64);
       setSelectedEncryptCertBase64(base64);
@@ -410,7 +435,7 @@ const CryptoApp = () => {
   async function checkSystem() {
     try {
       await checkIsValidSystemSetup();
-      window.alert('checkSystem: ok');
+      window.alert('Система готова для работы с ЭП');
     } catch (error) {
       outputError(error);
       window.alert(error.toString());
@@ -429,178 +454,281 @@ const CryptoApp = () => {
     }
   }
 
-  /**
-   * Проверить лицензии продуктов Крипто Про
-   */
-  async function handleCheckLicensesClick() {
-    try {
-      const result = await getLicensesState();
-      console.log(result);
-    } catch (error) {
-      outputError(error);
-      window.alert(error.toString());
-    }
-  }
-
   return (
-    <>
-      <p>Версия плагина {versionInfo?.cadesVersion}</p>
-      <p>Версия криптопровайдера {versionInfo?.cspVersion}</p>
-      <button onClick={() => checkPluginClick()}>Проверить плагин</button>
-      <button onClick={() => checkSystem()}>Проверить систему</button>
-      <button onClick={handleCheckLicensesClick}>Проверить лицензии</button>
-      <button onClick={() => setShowCryptoProviders(!showCryptoProviders)}>
-        {!showCryptoProviders
-          ? 'Показать криптопровайдеры'
-          : 'Скрыть криптопровайдеры'}
-      </button>
-      <button onClick={() => setShowCertificates(!showCertificates)}>
-        {!showCertificates ? 'Показать сертификаты' : 'Скрыть сертификаты'}
-      </button>
-      <div style={{ display: showCryptoProviders ? '' : 'none' }}>
-        Криптопровайдеры:
-        {cryptoProviders?.map((cryptoProvider, index) => {
-          return (
-            <p key={index}>
-              <CryptoProviderInfo cryptoProvider={cryptoProvider} />
-            </p>
-          );
-        })}
-      </div>
-      <div style={{ display: showCertificates ? '' : 'none' }}>
-        Сертификаты:
-        {certificates?.map((certInfo, index) => {
-          return (
-            <div key={index}>
-              <CertificateInfo
-                certificate={certInfo}
-                onSelect={(skid) => trySelectCertificate(skid)}
-              />
-            </div>
-          );
-        }) ?? 'Ничего нет :('}
-      </div>
-      <br />
-      <br />
-      <br />
-      <div>
-        <b>
-          ========================= Операции с сертификатами
-          =========================
-        </b>
-        <br />
-        <br />
-        skid:
-        <input
-          style={{ width: 350 }}
-          placeholder="Введите skid серта"
-          onChange={(e) => trySelectCertificate(e.target.value)}
-          value={selectedCertificate?.subjectKeyId!}
-        />
-        {selectedCertificate ? (
-          <>
-            <p>Выбранный сертификат</p>
-            <CertificateInfo certificate={selectedCertificate} />
-          </>
-        ) : null}
-        {selectedCertificate ? (
-          <>
-            <br />
-            <br />
-            <button onClick={(_) => checkEncryptDecrypt()}>
-              Проверить шифрование/расшифровку
-            </button>
-            <br />
-          </>
-        ) : null}
-        <br />
-        <br />
-        Выберите файл для криптооперации:
-        <input
-          type="file"
-          onChange={(e) => setSelectedFile(e.target.files![0])}
-        />
-        <br />
-        {selectedCertificate && selectedFile ? (
-          <>
-            <br />
-            <button onClick={(_) => signFile()}>Подписать CMS</button>
-          </>
-        ) : null}
-        {selectedCertificate && selectedFile ? (
-          <>
-            <br />
-            <button onClick={(_) => signFileHash()}>Подписать CMS (хэш)</button>
-          </>
-        ) : null}
-        {selectedCertificate && selectedFile ? (
-          <>
-            <br />
+    <div className="container py-3 px-5 d-flex flex-column row-gap-3">
+      <div className="accordion">
+        <div className="accordion-item">
+          <div className="accordion-header">
             <button
-              onClick={(_) =>
-                signXmlFile(
-                  CADESCOM_XML_SIGNATURE_TYPE.CADESCOM_XML_SIGNATURE_TYPE_ENVELOPED
-                )
-              }
+              className="accordion-button bg-light"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#collapseEnvironment"
+              aria-expanded="true"
+              aria-controls="collapseEnvironment"
             >
-              Подписать XmlDSig (enveloped)
-            </button>
-          </>
-        ) : null}
-        {selectedCertificate && selectedFile ? (
-          <>
-            <br />
-            <button
-              onClick={(_) =>
-                signXmlFile(
-                  CADESCOM_XML_SIGNATURE_TYPE.CADESCOM_XML_SIGNATURE_TYPE_TEMPLATE
-                )
-              }
-            >
-              Подписать XmlDSig (template)
-            </button>
-          </>
-        ) : null}
-        {selectedCertificate && selectedFile ? (
-          <div>
-            <button onClick={(_) => signXadesT(false)}>
-              Подписать XAdES-T (TSP налоговой)
-            </button>
-            <button onClick={(_) => signXadesT(true)}>
-              Подписать XAdES-T (кастомный TSP)
+              Настройка окружения для работы с модулем
             </button>
           </div>
-        ) : null}
-        {selectedFile ? (
-          <>
-            <button onClick={(_) => decryptFileCms()}>Расшифровать CMS</button>
-            <br />
-          </>
-        ) : null}
-        <br />
-        <br />
-        Укажите Base64 сертификата на которого зашифровать
-        <br /> или выберите серт из файла:
-        <input
-          type="file"
-          onChange={async (e) =>
-            await importCertificate(await e.target.files![0].arrayBuffer())
-          }
-        />
-        <br />
-        <textarea
-          style={{ width: 500, height: 200 }}
-          value={selectedEncryptCertBase64}
-          onChange={async (e) => await importCertificate(e.target.value)}
-        />
-        {selectedEncryptCert && selectedFile ? (
-          <>
-            <br />
-            <button onClick={(_) => encryptFileCms()}>Зашифровать CMS</button>
-          </>
-        ) : null}
+          <div
+            id="collapseEnvironment"
+            className="accordion-collapse collapse"
+            data-bs-parent="#accordionEnvironment"
+          >
+            <div className="accordion-body flex-row">
+              <div className="row px-2 mb-2" style={{ fontSize: 12 }}>
+                <div className="col-1" style={{ width: 'fit-content' }}>
+                  Версия плагина {versionInfo?.cadesVersion}
+                </div>
+                <div className="col">
+                  Версия криптопровайдера {versionInfo?.cspVersion}
+                </div>
+              </div>
+              <div className="btn-group" role="group">
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => checkPluginClick()}
+                >
+                  Проверить плагин
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => checkSystem()}
+                >
+                  Проверить систему
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => setShowLicenses(!showLicenses)}
+                >
+                  {!showLicenses ? 'Показать лицензии' : 'Скрыть лицензии'}
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => setShowCryptoProviders(!showCryptoProviders)}
+                >
+                  {!showCryptoProviders
+                    ? 'Показать криптопровайдеры'
+                    : 'Скрыть криптопровайдеры'}
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => setShowCertificates(!showCertificates)}
+                >
+                  {!showCertificates
+                    ? 'Показать сертификаты'
+                    : 'Скрыть сертификаты'}
+                </button>
+              </div>
+              <div
+                className="mt-2"
+                style={{ display: showLicenses ? '' : 'none' }}
+              >
+                Лицензии:
+                <div className="d-flex flex-column row-gap-2 mt-2">
+                  {Object.keys(licenses)?.map((key, index) => (
+                    <div className="card" key={index}>
+                      <div className="card-body">
+                        <LicenseInfo license={licenses[key]} type={key} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div
+                className="mt-2"
+                style={{ display: showCryptoProviders ? '' : 'none' }}
+              >
+                Криптопровайдеры:
+                <div className="d-flex flex-column row-gap-2 mt-2">
+                  {cryptoProviders?.map((cryptoProvider, index) => (
+                    <div className="card" key={index}>
+                      <div className="card-body">
+                        <CryptoProviderInfo cryptoProvider={cryptoProvider} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div
+                className="mt-2"
+                style={{ display: showCertificates ? '' : 'none' }}
+              >
+                Сертификаты:
+                <div
+                  className="mt-2"
+                  style={{
+                    maxHeight: 300,
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    rowGap: 8,
+                  }}
+                >
+                  {certificates?.map((certInfo, index) => {
+                    return (
+                      <div key={index}>
+                        <CertificateInfo
+                          certificate={certInfo}
+                          onSelect={(skid) => trySelectCertificate(skid)}
+                        />
+                      </div>
+                    );
+                  }) ?? 'Ничего нет :('}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </>
+      <div className="d-flex flex-column row-gap-2">
+        <div className="d-flex column-gap-2 align-items-center">
+          skid:
+          <input
+            className="form-control w-100"
+            placeholder="Введите skid сертификата"
+            onChange={(e) => trySelectCertificate(e.target.value)}
+            value={selectedCertificate?.subjectKeyId!}
+          />
+        </div>
+        {selectedCertificate ? (
+          <>
+            <CertificateInfo
+              certificate={selectedCertificate}
+              titleLeft={
+                <div className="badge text-bg-success align-content-center">
+                  Выбранный сертификат
+                </div>
+              }
+              checkEncryptDecrypt={(_) => checkEncryptDecrypt()}
+              showAttributes
+            />
+          </>
+        ) : null}
+        <div className="card">
+          <div className="card-body">
+            <div className="card-title">Выберите файл для криптооперации:</div>
+            <input
+              type="file"
+              className="form-control"
+              onChange={(e) => setSelectedFile(e.target.files![0])}
+            />
+          </div>
+        </div>
+        {!!selectedFile && (
+          <div className="btn-group-vertical">
+            <button
+              className={`btn btn-outline-primary ${selectedCertificate && selectedFile ? '' : 'disabled'}`}
+              onClick={(_) => signFile()}
+            >
+              Подписать CMS
+            </button>
+            {!!selectedCertificate && (
+              <>
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={(_) => signFileHash()}
+                >
+                  Подписать CMS (хэш)
+                </button>
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={(_) =>
+                    signXmlFile(
+                      CADESCOM_XML_SIGNATURE_TYPE.CADESCOM_XML_SIGNATURE_TYPE_ENVELOPED,
+                    )
+                  }
+                >
+                  Подписать XmlDSig (enveloped)
+                </button>
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={(_) =>
+                    signXmlFile(
+                      CADESCOM_XML_SIGNATURE_TYPE.CADESCOM_XML_SIGNATURE_TYPE_TEMPLATE,
+                    )
+                  }
+                >
+                  Подписать XmlDSig (template)
+                </button>
+                <div className="btn-group">
+                  <button
+                    className="btn btn-outline-primary"
+                    onClick={(_) => signXadesT(false)}
+                  >
+                    Подписать XAdES-T (TSP налоговой)
+                  </button>
+                  <button
+                    className="btn btn-outline-primary"
+                    onClick={(_) => signXadesT(true)}
+                  >
+                    Подписать XAdES-T (кастомный TSP)
+                  </button>
+                </div>
+              </>
+            )}
+            <button
+              className="btn btn-outline-primary"
+              onClick={(_) => decryptFileCms()}
+            >
+              Расшифровать CMS
+            </button>
+          </div>
+        )}
+        <div className="accordion">
+          <div className="accordion-item">
+            <div className="accordion-header">
+              <button
+                className="accordion-button bg-light"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#collapseEncodeCMS"
+                aria-expanded="true"
+                aria-controls="collapseEncodeCMS"
+              >
+                Зашифровать CMS
+              </button>
+            </div>
+            <div
+              id="collapseEncodeCMS"
+              className="accordion-collapse collapse"
+              data-bs-parent="#collapseEncodeCMS"
+            >
+              <div className="accordion-body d-flex flex-column row-gap-2">
+                <div className="card-title">
+                  Укажите Base64 сертификата на которого зашифровать
+                  <br /> или выберите сертификат из файла:
+                </div>
+                <input
+                  type="file"
+                  className="form-control"
+                  onChange={async (e) =>
+                    await importCertificate(
+                      await e.target.files![0].arrayBuffer(),
+                    )
+                  }
+                />
+                <textarea
+                  className="form-control w-100"
+                  value={selectedEncryptCertBase64}
+                  onChange={async (e) =>
+                    await importCertificate(e.target.value)
+                  }
+                  rows={3}
+                />
+                <button
+                  className={`btn btn-outline-primary ${selectedEncryptCert && selectedFile ? '' : 'disabled'}`}
+                  onClick={(_) => encryptFileCms()}
+                  disabled={!selectedEncryptCert || !selectedFile}
+                >
+                  Зашифровать CMS
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

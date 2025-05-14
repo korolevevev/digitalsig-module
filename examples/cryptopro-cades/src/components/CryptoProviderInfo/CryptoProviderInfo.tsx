@@ -6,9 +6,7 @@ type CryptoProviderProps = {
 
 export const CryptoProviderInfo = ({ cryptoProvider }: CryptoProviderProps) => (
   <>
-    <span style={{ display: 'block' }}>
-      <b>Имя:</b> {cryptoProvider.ProviderName}
-    </span>
+    <span style={{ display: 'block' }}>{cryptoProvider.ProviderName}</span>
     <span style={{ display: 'block' }}>
       <b>Тип:</b> {cryptoProvider.ProviderType}
     </span>
